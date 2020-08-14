@@ -55,5 +55,13 @@ namespace Microsoft.Health.Fhir.Core.Features
         public const string Id = "_id";
 
         public const string Type = "_type";
+
+        /// <summary>
+        /// The anonymization configuration
+        /// </summary>
+        /// <remarks>The anonymization configuration location and addition information. </remarks>
+        public const string AnonymizationConfigurationLocation = "_anonymizationConfig";
+
+        public const string AnonymizationConfigurationFileEtag = "_anonymizationConfigEtag";
     }
 }

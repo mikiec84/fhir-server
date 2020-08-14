@@ -27,6 +27,8 @@ namespace Microsoft.Health.Fhir.Core.Features.Operations.Export.Models
             string groupId = null,
             string storageAccountConnectionHash = null,
             string storageAccountUri = null,
+            string anonymizationConfigurationLocation = null,
+            string anonymizationConfigurationFileETag = null,
             uint maximumNumberOfResourcesPerQuery = 100,
             uint numberOfPagesPerCommit = 10)
         {
@@ -44,6 +46,9 @@ namespace Microsoft.Health.Fhir.Core.Features.Operations.Export.Models
             StorageAccountUri = storageAccountUri;
             MaximumNumberOfResourcesPerQuery = maximumNumberOfResourcesPerQuery;
             NumberOfPagesPerCommit = numberOfPagesPerCommit;
+
+            AnonymizationConfigurationLocation = anonymizationConfigurationLocation;
+            AnonymizationConfigurationFileETag = anonymizationConfigurationFileETag;
 
             // Default values
             SchemaVersion = 1;
@@ -103,5 +108,11 @@ namespace Microsoft.Health.Fhir.Core.Features.Operations.Export.Models
 
         [JsonProperty(JobRecordProperties.NumberOfPagesPerCommit)]
         public uint NumberOfPagesPerCommit { get; private set; }
+
+        [JsonProperty(JobRecordProperties.AnonymizationConfigurationLocation)]
+        public string AnonymizationConfigurationLocation { get; private set; }
+
+        [JsonProperty(JobRecordProperties.AnonymizationConfigurationFileETag)]
+        public string AnonymizationConfigurationFileETag { get; private set; }
     }
 }

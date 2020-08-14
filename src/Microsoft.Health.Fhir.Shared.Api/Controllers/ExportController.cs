@@ -12,6 +12,7 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Health.Fhir.Api.Configs;
 using Microsoft.Health.Fhir.Api.Features.ActionResults;
 using Microsoft.Health.Fhir.Api.Features.Audit;
 using Microsoft.Health.Fhir.Api.Features.Filters;
@@ -50,6 +51,7 @@ namespace Microsoft.Health.Fhir.Api.Controllers
         private readonly IFhirRequestContextAccessor _fhirRequestContextAccessor;
         private readonly IUrlResolver _urlResolver;
         private readonly ExportJobConfiguration _exportConfig;
+        private readonly FeatureConfiguration _features;
         private readonly ILogger<ExportController> _logger;
 
         public ExportController(
@@ -57,18 +59,21 @@ namespace Microsoft.Health.Fhir.Api.Controllers
             IFhirRequestContextAccessor fhirRequestContextAccessor,
             IUrlResolver urlResolver,
             IOptions<OperationsConfiguration> operationsConfig,
+            IOptions<FeatureConfiguration> features,
             ILogger<ExportController> logger)
         {
             EnsureArg.IsNotNull(mediator, nameof(mediator));
             EnsureArg.IsNotNull(fhirRequestContextAccessor, nameof(fhirRequestContextAccessor));
             EnsureArg.IsNotNull(urlResolver, nameof(urlResolver));
             EnsureArg.IsNotNull(operationsConfig?.Value?.Export, nameof(operationsConfig));
+            EnsureArg.IsNotNull(features?.Value, nameof(features));
             EnsureArg.IsNotNull(logger, nameof(logger));
 
             _mediator = mediator;
             _fhirRequestContextAccessor = fhirRequestContextAccessor;
             _urlResolver = urlResolver;
             _exportConfig = operationsConfig.Value.Export;
+            _features = features.Value;
             _logger = logger;
         }
 
@@ -76,10 +81,16 @@ namespace Microsoft.Health.Fhir.Api.Controllers
         [Route(KnownRoutes.Export)]
         [ServiceFilter(typeof(ValidateExportRequestFilterAttribute))]
         [AuditEventType(AuditEventSubType.Export)]
-        public async Task<IActionResult> Export([FromQuery(Name = KnownQueryParameterNames.Since)] PartialDateTime since, [FromQuery(Name = KnownQueryParameterNames.Type)] string resourceType)
+        public async Task<IActionResult> Export([FromQuery(Name = KnownQueryParameterNames.Since)] PartialDateTime since, [FromQuery(Name = KnownQueryParameterNames.Type)] string resourceType, [FromQuery(Name = KnownQueryParameterNames.AnonymizationConfigurationLocation)] string anonymizationConfigLocation, [FromQuery(Name = KnownQueryParameterNames.AnonymizationConfigurationFileEtag)] string anonymizationConfigFileETag)
         {
             CheckIfExportIsEnabled();
-            return await SendExportRequest(ExportJobType.All, since, resourceType);
+
+            if (!string.IsNullOrWhiteSpace(anonymizationConfigLocation) || !string.IsNullOrWhiteSpace(anonymizationConfigFileETag))
+            {
+                CheckIfAnonymizedExportIsEnabled();
+            }
+
+            return await SendExportRequest(ExportJobType.All, since, resourceType, anonymizationConfigLocation: anonymizationConfigLocation, anonymizationConfigFileETag: anonymizationConfigFileETag);
         }
 
         [HttpGet]
@@ -150,9 +161,9 @@ namespace Microsoft.Health.Fhir.Api.Controllers
             return new ExportResult(response.StatusCode);
         }
 
-        private async Task<IActionResult> SendExportRequest(ExportJobType exportType, PartialDateTime since, string resourceType = null, string groupId = null)
+        private async Task<IActionResult> SendExportRequest(ExportJobType exportType, PartialDateTime since, string resourceType = null, string groupId = null, string anonymizationConfigLocation = null, string anonymizationConfigFileETag = null)
         {
-            CreateExportResponse response = await _mediator.ExportAsync(_fhirRequestContextAccessor.FhirRequestContext.Uri, exportType, resourceType, since, groupId, HttpContext.RequestAborted);
+            CreateExportResponse response = await _mediator.ExportAsync(_fhirRequestContextAccessor.FhirRequestContext.Uri, exportType, resourceType, since, groupId, anonymizationConfigLocation, anonymizationConfigFileETag, HttpContext.RequestAborted);
 
             var exportResult = ExportResult.Accepted();
             exportResult.SetContentLocationHeader(_urlResolver, OperationsConstants.Export, response.JobId);
@@ -165,6 +176,14 @@ namespace Microsoft.Health.Fhir.Api.Controllers
             if (!_exportConfig.Enabled)
             {
                 throw new RequestNotValidException(string.Format(Resources.OperationNotEnabled, OperationsConstants.Export));
+            }
+        }
+
+        private void CheckIfAnonymizedExportIsEnabled()
+        {
+            if (!_features.SupportsAnonymizedExport)
+            {
+                throw new RequestNotValidException(string.Format(Resources.OperationNotEnabled, OperationsConstants.AnonymizedExport));
             }
         }
     }
